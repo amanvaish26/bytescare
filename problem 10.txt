@@ -1,0 +1,187 @@
+First, import all the required Python libraries:
+
+import keras
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Flatten
+from keras.layers import Conv2D, MaxPooling2D
+from keras.utils import to_categorical
+from keras.preprocessing import image
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm
+%matplotlib inline
+view rawimport_library.py hosted with ❤ by GitHub
+Now, read the .csv file and look at the first five rows:
+
+train = pd.read_csv('multi_label_train.csv')    # reading the csv file
+train.head()      # printing first five rows of the file
+view rawread_csv.py hosted with ❤ by GitHub
+multi label dataset
+
+There are 27 columns in this file. Let’s print the names of these columns:
+
+train.columns
+view rawcolumns.py hosted with ❤ by GitHub
+train columns
+
+ 
+
+ 
+
+ 
+
+The genre column contains the list for each image which specifies the genre of that movie. So, from the head of the .csv file, the genre of the first image is Comedy and Drama.
+
+The remaining 25 columns are the one-hot encoded columns. So, if a movie belongs to the Action genre, its value will be 1, otherwise 0. The image can belong to 25 different genres.
+
+We will build a model that will return the genre of a given movie poster. But before that, do you remember the first step for building any image classification model?
+
+That’s right – loading and preprocessing the data. So, let’s read in all the training images:
+
+train_image = []
+for i in tqdm(range(train.shape[0])):
+    img = image.load_img('Multi_Label_dataset/Images/'+train['Id'][i]+'.jpg',target_size=(400,400,3))
+    img = image.img_to_array(img)
+    img = img/255
+    train_image.append(img)
+X = np.array(train_image)
+view rawread_images.py hosted with ❤ by GitHub
+A quick look at the shape of the array:
+
+X.shape
+view rawshape.py hosted with ❤ by GitHub
+image shape
+
+ 
+
+There are 7254 poster images and all the images have been converted to a shape of (400, 300, 3). Let’s plot and visualize one of the images:
+
+plt.imshow(X[2])
+view rawplot_image.py hosted with ❤ by GitHub
+
+
+This is the poster for the movie ‘Trading Places’. Let’s also print the genre of this movie:
+
+train['Genre'][2]
+view rawtrue_genre.py hosted with ❤ by GitHub
+
+
+ 
+
+This movie has a single genre – Comedy. The next thing our model would require is the true label(s) for all these images. Can you guess what would be the shape of the true labels for 7254 images?
+
+Let’s see. We know there are a total of 25 possible genres. For each image, we will have 25 targets, i.e., whether the movie belongs to that genre or not. So, all these 25 targets will have a value of either 0 or 1.
+
+We will remove the Id and genre columns from the train file and convert the remaining columns to an array which will be the target for our images:
+
+y = np.array(train.drop(['Id', 'Genre'],axis=1))
+y.shape
+view rawtrue_labels.py hosted with ❤ by GitHub
+
+
+ 
+
+The shape of the output array is (7254, 25) as we expected. Now, let’s create a validation set which will help us check the performance of our model on unseen data. We will randomly separate 10% of the images as our validation set:
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42, test_size=0.1)
+view rawvalidation.py hosted with ❤ by GitHub
+The next step is to define the architecture of our model. The output layer will have 25 neurons (equal to the number of genres) and we’ll use sigmoid as the activation function.
+
+I will be using a certain architecture (given below) to solve this problem. You can modify this architecture as well by changing the number of hidden layers, activation functions and other hyperparameters.
+
+model = Sequential()
+model.add(Conv2D(filters=16, kernel_size=(5, 5), activation="relu", input_shape=(400,400,3)))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
+model.add(Conv2D(filters=32, kernel_size=(5, 5), activation='relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
+model.add(Conv2D(filters=64, kernel_size=(5, 5), activation="relu"))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
+model.add(Conv2D(filters=64, kernel_size=(5, 5), activation='relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
+model.add(Flatten())
+model.add(Dense(128, activation='relu'))
+model.add(Dropout(0.5))
+model.add(Dense(64, activation='relu'))
+model.add(Dropout(0.5))
+model.add(Dense(25, activation='sigmoid'))
+view rawmodel.py hosted with ❤ by GitHub
+Let’s print our model summary:
+
+model.summary()
+view rawmodel_summary.py hosted with ❤ by GitHub
+model_summary
+
+Quite a lot of parameters to learn! Now, compile the model. I’ll use binary_crossentropy as the loss function and ADAM as the optimizer (again, you can use other optimizers as well):
+
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+view rawmodel_compile.py hosted with ❤ by GitHub
+Finally, we are at the most interesting part – training the model. We will train the model for 10 epochs and also pass the validation data which we created earlier in order to validate the model’s performance:
+
+model.fit(X_train, y_train, epochs=10, validation_data=(X_test, y_test), batch_size=64)
+view rawmodel.fit.py hosted with ❤ by GitHub
+model training
+
+We can see that the training loss has been reduced to 0.24 and the validation loss is also in sync. What’s next? It’s time to make predictions!
+
+All you Game of Thrones (GoT) and Avengers fans – this one’s for you. Let’s take the posters for GoT and Avengers and feed them to our model. Download the poster for GOT and Avengers before proceeding.
+
+Before making predictions, we need to preprocess these images using the same steps we saw earlier.
+
+img = image.load_img('GOT.jpg',target_size=(400,400,3))
+img = image.img_to_array(img)
+img = img/255
+view rawGOT.py hosted with ❤ by GitHub
+Now, we will predict the genre for these posters using our trained model. The model will tell us the probability for each genre and we will take the top 3 predictions from that.
+
+classes = np.array(train.columns[2:])
+proba = model.predict(img.reshape(1,400,400,3))
+top_3 = np.argsort(proba[0])[:-4:-1]
+for i in range(3):
+    print("{}".format(classes[top_3[i]])+" ({:.3})".format(proba[0][top_3[i]]))
+plt.imshow(img)
+view rawpred_GOT.py hosted with ❤ by GitHub
+game of thrones
+
+Impressive! Our model suggests Drama, Thriller and Action genres for Game of Thrones. That classifies GoT pretty well in my opinion. Let’s try our model on the Avengers poster. Preprocess the image:
+
+img = image.load_img('avengers.jpeg',target_size=(400,400,3))
+img = image.img_to_array(img)
+img = img/255
+view rawavengers.py hosted with ❤ by GitHub
+And then make the predictions:
+
+classes = np.array(train.columns[2:])
+proba = model.predict(img.reshape(1,400,400,3))
+top_3 = np.argsort(proba[0])[:-4:-1]
+for i in range(3):
+    print("{}".format(classes[top_3[i]])+" ({:.3})".format(proba[0][top_3[i]]))
+plt.imshow(img)
+view rawpred_avengers.py hosted with ❤ by GitHub
+avengers
+
+The genres our model comes up with are Drama, Action and Thriller. Again, these are pretty accurate results. Can the model perform equally well for Bollywood movies ? Let’s find out. We will use this Golmal 3 poster.
+
+You know what to do at this stage – load and preprocess the image:
+
+img = image.load_img('golmal.jpeg',target_size=(400,400,3))
+img = image.img_to_array(img)
+img = img/255
+view rawgolmal.py hosted with ❤ by GitHub
+And then predict the genre for this poster:
+
+classes = np.array(train.columns[2:])
+proba = model.predict(img.reshape(1,400,400,3))
+top_3 = np.argsort(proba[0])[:-4:-1]
+for i in range(3):
+    print("{}".format(classes[top_3[i]])+" ({:.3})".format(proba[0][top_3[i]]))
+plt.imshow(img)
+view rawpred_golmal.py hosted with ❤ by GitHub
+golmal
+
+Golmaal 3 was a comedy and our model has predicted it as the topmost genre. The other predicted genres are Drama and Romance – a relatively accurate assessment. We can see that the model is able to predict the genres just by seeing their poster.
